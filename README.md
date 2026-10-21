@@ -210,3 +210,106 @@ python manage.py runserver 8001
 - 不实现登录和自定义 CRUD，数据维护使用 Django Admin。
 - 任务书只作参考，实际开发允许交叉和调整。
 - 验收前 2–3 天冻结功能，只修 bug，不加页面。
+
+## 9. 小组协作流程（Git 分支）
+
+### 9.1 仓库所有者：邀请组员
+
+1. 打开 GitHub 仓库的 **Settings**
+2. 左侧选择 **Collaborators**（新版界面为 **Access → Collaborators**）
+3. 点击 **Add people**
+4. 输入组员的 GitHub 用户名或绑定邮箱
+5. 角色选择 **Write**（可以 clone、commit、push）
+6. 发送邀请
+
+组员在 GitHub 通知页或邮件里点击 **Accept invitation** 后，才拥有推送权限。
+
+> 把组员的 GitHub 用户名收集好，不要通过密码共享账号。
+
+### 9.2 组员首次拉取和初始化
+
+```bash
+git clone https://github.com/AEther61/dangdang_books.git
+cd dangdang_books
+
+# 创建虚拟环境（Windows cmd）
+python -m venv .venv
+.venv\Scripts\activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 复制环境变量模板，并填写自己电脑的 MySQL 密码
+copy .env.example .env
+
+# 建库、建表、生成样例数据
+mysql -u root -p < scripts/init_db.sql
+python manage.py migrate
+python manage.py seed_data
+
+# 启动
+python manage.py runserver
+```
+
+PowerShell 用户把激活命令换成：
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+`.env` 不进入 Git，每个人使用自己的本地数据库密码。
+
+### 9.3 每次开发：先同步，再开分支
+
+```bash
+# 1. 切到主分支并拉取最新代码
+git switch main
+git pull origin main
+
+# 2. 新建自己的功能分支（名字按功能取）
+git switch -c feature/book-list
+
+# 3. 修改代码、本地测试
+python manage.py check
+python manage.py runserver
+
+# 4. 提交
+git add .
+git commit -m "完成图书列表搜索和分页"
+
+# 5. 推送到 GitHub
+git push -u origin feature/book-list
+```
+
+分支命名建议：
+
+| 前缀 | 用途 | 示例 |
+|---|---|---|
+| `feature/` | 新功能 | `feature/book-detail` |
+| `fix/` | 修 bug | `fix/dashboard-sql` |
+| `docs/` | 文档 | `docs/er-diagram` |
+
+### 9.4 发起 Pull Request 并合并
+
+1. 推送分支后，GitHub 会提示 **Compare & pull request**，点击它
+2. `base` 选 `main`，`compare` 选自己的功能分支
+3. 填写改动说明，点击 **Create pull request**
+4. 由仓库所有者或其他组员检查后点击 **Merge pull request**
+5. 合并后删除远程功能分支
+
+合并完成后，每个人本地更新：
+
+```bash
+git switch main
+git pull origin main
+git branch -d feature/book-list
+```
+
+### 9.5 协作注意事项
+
+- 每次开新分支前先 `git pull origin main`，避免基于旧代码开发。
+- 一个分支只做一件事，提交信息写清楚做了什么。
+- **不要提交** `.env`、`.venv/`、`.idea/`、`__pycache__/`，这些已经在 `.gitignore` 中。
+- 数据库密码只保存在各自电脑的 `.env` 里，不要发到群里或写进代码。
+- 如果 `git push` 被拒绝，先 `git pull --rebase origin main`，解决冲突后再推送。
+- 验收前 2–3 天冻结功能，只修 bug。
