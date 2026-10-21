@@ -1,0 +1,7 @@
+Django==6.0.4
+PyMySQL==1.2.3
+python-dotenv==1.2.4
+
+# 爬虫组使用（当前项目不依赖它们也能启动）
+requests>=2.32.0
+parsel>=1.9.0

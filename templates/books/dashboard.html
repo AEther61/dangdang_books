@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 · 当当畅销图书分析{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+        <h1 class="h3 mb-1">数据仪表盘</h1>
+        <p class="text-muted mb-0">图书、出版社、榜单与价格的整体概览</p>
+    </div>
+    {% if latest_snapshot_date %}
+        <span class="badge text-bg-light border">最新榜单：{{ latest_snapshot_date|date:"Y-m-d" }}</span>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">图书总数</div>
+                <div class="stat-value">{{ stats.book_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">出版社</div>
+                <div class="stat-value">{{ stats.publisher_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">作者</div>
+                <div class="stat-value">{{ stats.author_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">平均价格</div>
+                <div class="stat-value">
+                    {% if stats.avg_price %}¥{{ stats.avg_price|floatformat:2 }}{% else %}--{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">榜单快照天数</div>
+                <div class="stat-value">{{ stats.snapshot_days }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">各出版社图书数量（前 8）</div>
+            <div class="card-body">
+                {% if publisher_chart.labels %}
+                    <div id="publisherChart" class="chart"></div>
+                {% else %}
+                    <p class="text-muted mb-0">暂无出版社数据。</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header bg-white fw-semibold">图书价格区间分布</div>
+            <div class="card-body">
+                {% if price_chart.labels %}
+                    <div id="priceChart" class="chart"></div>
+                {% else %}
+                    <p class="text-muted mb-0">暂无价格数据。</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">最新总榜 Top 10</span>
+        <a class="small" href="{% url 'books:book_list' %}?sort=rating">查看全部图书</a>
+    </div>
+    <div class="card-body p-0">
+        {% if top_books %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th class="text-center" style="width: 80px;">排名</th>
+                        <th>书名</th>
+                        <th class="text-end">价格</th>
+                        <th class="text-end">评分</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in top_books %}
+                        <tr>
+                            <td class="text-center">
+                                <span class="rank-badge {% if item.rank_no <= 3 %}rank-top{% endif %}">
+                                    {{ item.rank_no }}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{% url 'books:book_detail' item.id %}" class="text-decoration-none">
+                                    {{ item.title }}
+                                </a>
+                            </td>
+                            <td class="text-end">¥{{ item.price|floatformat:2 }}</td>
+                            <td class="text-end">{{ item.rating|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="p-4 text-muted">
+                暂无榜单数据。先运行 <code>python manage.py seed_data</code>，或导入爬虫数据后生成榜单快照。
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{{ publisher_chart|json_script:"publisher-chart-data" }}
+{{ price_chart|json_script:"price-chart-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>
+    (function () {
+        const publisherData = JSON.parse(document.getElementById("publisher-chart-data").textContent);
+        const priceData = JSON.parse(document.getElementById("price-chart-data").textContent);
+        const charts = [];
+
+        const publisherEl = document.getElementById("publisherChart");
+        if (publisherEl && publisherData.labels.length) {
+            const chart = echarts.init(publisherEl);
+            chart.setOption({
+                color: ["#2f6fdd"],
+                tooltip: {trigger: "axis"},
+                grid: {left: 10, right: 20, top: 20, bottom: 10, containLabel: true},
+                xAxis: {type: "value", minInterval: 1},
+                yAxis: {
+                    type: "category",
+                    data: publisherData.labels.slice().reverse(),
+                    axisLabel: {width: 110, overflow: "truncate"}
+                },
+                series: [{
+                    type: "bar",
+                    data: publisherData.values.slice().reverse(),
+                    barMaxWidth: 26,
+                    itemStyle: {borderRadius: [0, 4, 4, 0]}
+                }]
+            });
+            charts.push(chart);
+        }
+
+        const priceEl = document.getElementById("priceChart");
+        if (priceEl && priceData.labels.length) {
+            const chart = echarts.init(priceEl);
+            chart.setOption({
+                color: ["#2f6fdd", "#5aa9e6", "#7bc8a4", "#f6c85f", "#ef8354"],
+                tooltip: {trigger: "item", formatter: "{b}<br/>{c} 本（{d}%）"},
+                legend: {bottom: 0, left: "center"},
+                series: [{
+                    type: "pie",
+                    radius: ["38%", "62%"],
+                    center: ["50%", "44%"],
+                    avoidLabelOverlap: true,
+                    label: {formatter: "{b}\n{c} 本"},
+                    data: priceData.labels.map(function (name, index) {
+                        return {name: name, value: priceData.values[index]};
+                    })
+                }]
+            });
+            charts.push(chart);
+        }
+
+        window.addEventListener("resize", function () {
+            charts.forEach(function (chart) { chart.resize(); });
+        });
+    })();
+</script>
+{% endblock %}

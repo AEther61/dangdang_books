@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}图书列表 · 当当畅销图书分析{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <div>
+        <h1 class="h3 mb-1">图书列表</h1>
+        <p class="text-muted mb-0">共 {{ page_obj.paginator.count }} 本图书</p>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'books:book_list' %}">重置筛选</a>
+</div>
+
+<form method="get" class="card card-body shadow-sm mb-4">
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-lg-4">
+            <label class="form-label small text-muted" for="q">搜索</label>
+            <input class="form-control" id="q" name="q" value="{{ keyword }}"
+                   placeholder="书名、作者、ISBN、出版社">
+        </div>
+        <div class="col-6 col-lg-3">
+            <label class="form-label small text-muted" for="category">分类</label>
+            <select class="form-select" id="category" name="category">
+                <option value="">全部分类</option>
+                {% for category in categories %}
+                    <option value="{{ category.id }}"
+                            {% if selected_category_id == category.id %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-6 col-lg-3">
+            <label class="form-label small text-muted" for="sort">排序</label>
+            <select class="form-select" id="sort" name="sort">
+                <option value="rating" {% if sort == "rating" %}selected{% endif %}>评分从高到低</option>
+                <option value="price_asc" {% if sort == "price_asc" %}selected{% endif %}>价格从低到高</option>
+                <option value="price_desc" {% if sort == "price_desc" %}selected{% endif %}>价格从高到低</option>
+                <option value="newest" {% if sort == "newest" %}selected{% endif %}>出版日期最新</option>
+                <option value="title" {% if sort == "title" %}selected{% endif %}>书名排序</option>
+            </select>
+        </div>
+        <div class="col-12 col-lg-2 d-grid">
+            <button class="btn btn-primary" type="submit">查询</button>
+        </div>
+    </div>
+</form>
+
+{% if page_obj.object_list %}
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                <tr>
+                    <th>图书</th>
+                    <th class="d-none d-lg-table-cell">出版社</th>
+                    <th class="text-end">价格</th>
+                    <th class="text-end">评分</th>
+                    <th class="text-end d-none d-md-table-cell">评论数</th>
+                    <th class="d-none d-xl-table-cell">出版日期</th>
+                    <th class="d-none d-xl-table-cell">分类</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for book in page_obj %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="book-avatar">{{ book.title|first }}</span>
+                                <div class="min-w-0">
+                                    <a class="text-decoration-none fw-semibold"
+                                       href="{% url 'books:book_detail' book.id %}">{{ book.title }}</a>
+                                    <div class="small text-muted text-truncate">
+                                        {% for author in book.authors.all %}
+                                            {{ author.name }}{% if not forloop.last %}、{% endif %}
+                                        {% empty %}
+                                            作者未知
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="d-none d-lg-table-cell">{{ book.publisher.name|default:"—" }}</td>
+                        <td class="text-end text-nowrap">
+                            <span class="fw-semibold">¥{{ book.price|floatformat:2 }}</span>
+                            {% if book.original_price %}
+                                <div class="small text-muted text-decoration-line-through">
+                                    ¥{{ book.original_price|floatformat:2 }}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if book.rating %}
+                                <span class="badge text-bg-warning">{{ book.rating }}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end d-none d-md-table-cell">{{ book.review_count }}</td>
+                        <td class="d-none d-xl-table-cell">{{ book.publish_date|date:"Y-m-d"|default:"—" }}</td>
+                        <td class="d-none d-xl-table-cell">
+                            {% for category in book.categories.all %}
+                                <span class="badge text-bg-light border">{{ category.name }}</span>
+                            {% empty %}
+                                <span class="text-muted">—</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+        <nav class="mt-4" aria-label="图书分页">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.previous_page_number }}{% if query_string %}&{{ query_string }}{% endif %}">上一页</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">上一页</span></li>
+                {% endif %}
+                <li class="page-item disabled">
+                    <span class="page-link">第 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 页</span>
+                </li>
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.next_page_number }}{% if query_string %}&{{ query_string }}{% endif %}">下一页</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">下一页</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+{% else %}
+    <div class="alert alert-light border">
+        {% if keyword or selected_category_id %}
+            没有找到符合条件的图书，试试更换关键词或分类。
+        {% else %}
+            暂无图书数据。请先运行
+            <code>python manage.py seed_data</code>
+            生成样例数据，或导入爬虫数据。
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

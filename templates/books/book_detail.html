@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}{{ book.title }} · 当当畅销图书分析{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a href="{% url 'books:dashboard' %}">仪表盘</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'books:book_list' %}">图书列表</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ book.title }}</li>
+    </ol>
+</nav>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3 col-lg-2">
+        <div class="book-cover-large">{{ book.title|first }}</div>
+        {% if book.detail_url %}
+            <a class="btn btn-outline-secondary btn-sm w-100 mt-2"
+               href="{{ book.detail_url }}" target="_blank" rel="noopener">查看当当页面</a>
+        {% endif %}
+    </div>
+    <div class="col-md-9 col-lg-10">
+        <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+            <div>
+                <h1 class="h3 mb-1">{{ book.title }}</h1>
+                {% if book.subtitle %}
+                    <p class="text-muted mb-2">{{ book.subtitle }}</p>
+                {% endif %}
+                <p class="mb-2">
+                    <span class="text-muted">作者：</span>
+                    {% for author in book.authors.all %}
+                        {{ author.name }}{% if not forloop.last %}、{% endif %}
+                    {% empty %}
+                        <span class="text-muted">未知</span>
+                    {% endfor %}
+                </p>
+                <p class="mb-3">
+                    {% for category in book.categories.all %}
+                        <span class="badge text-bg-light border">{{ category.name }}</span>
+                    {% endfor %}
+                </p>
+            </div>
+            <div class="text-end">
+                {% if latest_overall %}
+                    <div class="small text-muted">最新总榜排名</div>
+                    <div class="display-6 fw-bold text-primary">#{{ latest_overall.rank_no }}</div>
+                    <div class="small text-muted">{{ latest_overall.snapshot_date|date:"Y-m-d" }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="price-box my-3">
+            <span class="current-price">¥{{ book.price|floatformat:2 }}</span>
+            {% if book.original_price %}
+                <span class="original-price">¥{{ book.original_price|floatformat:2 }}</span>
+            {% endif %}
+            {% if book.discount %}
+                <span class="badge text-bg-danger">{{ book.discount }}折</span>
+            {% endif %}
+        </div>
+
+        <div class="row g-3">
+            <div class="col-6 col-lg-3">
+                <div class="mini-stat">
+                    <div class="mini-stat-label">评分</div>
+                    <div class="mini-stat-value">{{ book.rating|default:"—" }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="mini-stat">
+                    <div class="mini-stat-label">评论数</div>
+                    <div class="mini-stat-value">{{ book.review_count }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="mini-stat">
+                    <div class="mini-stat-label">出版日期</div>
+                    <div class="mini-stat-value fs-5">{{ book.publish_date|date:"Y-m-d"|default:"—" }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="mini-stat">
+                    <div class="mini-stat-label">价格记录</div>
+                    <div class="mini-stat-value">{{ price_history|length }} 条</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-white fw-semibold">基本信息</div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <tbody>
+                        <tr>
+                            <th class="text-muted fw-normal" style="width: 120px;">ISBN</th>
+                            <td>{{ book.isbn|default:"—" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted fw-normal">出版社</th>
+                            <td>{{ book.publisher.name|default:"—" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted fw-normal">当当商品ID</th>
+                            <td>{{ book.dangdang_id|default:"—" }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-muted fw-normal">出版日期</th>
+                            <td>{{ book.publish_date|date:"Y-m-d"|default:"—" }}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-white fw-semibold">内容简介</div>
+            <div class="card-body">
+                {% if book.description %}
+                    {{ book.description|linebreaks }}
+                {% else %}
+                    <p class="text-muted mb-0">暂无简介。</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-white fw-semibold">榜单记录</div>
+            <div class="card-body p-0">
+                {% if rankings %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>快照日期</th>
+                                <th>榜单</th>
+                                <th class="text-end">排名</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for item in rankings %}
+                                <tr>
+                                    <td>{{ item.snapshot_date|date:"Y-m-d" }}</td>
+                                    <td>
+                                        {% if item.category %}{{ item.category.name }}{% else %}总榜{% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <span class="rank-badge {% if item.rank_no <= 3 %}rank-top{% endif %}">
+                                            {{ item.rank_no }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted p-3 mb-0">暂无榜单记录。</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">价格历史</span>
+                {% if latest_category %}
+                    <span class="small text-muted">
+                        分类榜：{{ latest_category.category.name }} 第 {{ latest_category.rank_no }} 名
+                    </span>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if price_change %}
+                    <div class="alert alert-light border rounded-0 mb-0 py-2">
+                        较最早一条记录：{{ price_change.direction }}
+                        ¥{{ price_change.amount|floatformat:2 }}
+                    </div>
+                {% endif %}
+                {% if price_history %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>记录时间</th>
+                                <th class="text-end">价格</th>
+                                <th>来源</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for item in price_history %}
+                                <tr>
+                                    <td>{{ item.recorded_at|date:"Y-m-d H:i" }}</td>
+                                    <td class="text-end">¥{{ item.price|floatformat:2 }}</td>
+                                    <td><span class="badge text-bg-light border">{{ item.source }}</span></td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted p-3 mb-0">暂无价格记录。</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        {% if related_books %}
+            <div class="card">
+                <div class="card-header bg-white fw-semibold">同出版社图书</div>
+                <div class="list-group list-group-flush">
+                    {% for item in related_books %}
+                        <a class="list-group-item list-group-item-action"
+                           href="{% url 'books:book_detail' item.id %}">
+                            <div class="d-flex justify-content-between gap-2">
+                                <span class="text-truncate">{{ item.title }}</span>
+                                <span class="text-muted text-nowrap">¥{{ item.price|floatformat:2 }}</span>
+                            </div>
+                            <small class="text-muted">
+                                {% for author in item.authors.all %}
+                                    {{ author.name }}{% if not forloop.last %}、{% endif %}
+                                {% empty %}
+                                    作者未知
+                                {% endfor %}
+                            </small>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

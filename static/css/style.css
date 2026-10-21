@@ -1,0 +1,175 @@
+:root {
+    --brand: #2f6fdd;
+    --page-bg: #f5f7fb;
+}
+
+body {
+    background: var(--page-bg);
+    color: #263244;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei",
+        "PingFang SC", "Hiragino Sans GB", sans-serif;
+}
+
+.navbar.bg-primary {
+    background-color: var(--brand) !important;
+}
+
+main {
+    min-height: calc(100vh - 160px);
+}
+
+.card {
+    border: 1px solid #e7ebf2;
+    border-radius: 0.75rem;
+}
+
+.card-header {
+    border-bottom-color: #eef1f6;
+    border-top-left-radius: 0.75rem !important;
+    border-top-right-radius: 0.75rem !important;
+}
+
+.stat-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(47, 111, 221, 0.08);
+}
+
+.stat-label {
+    color: #7b8798;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    color: #1d2a3d;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.chart {
+    height: 320px;
+    width: 100%;
+}
+
+.book-avatar {
+    align-items: center;
+    background: linear-gradient(135deg, #3d7bea, #6ea8fe);
+    border-radius: 0.4rem;
+    color: #fff;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-size: 1rem;
+    font-weight: 600;
+    height: 44px;
+    justify-content: center;
+    width: 34px;
+}
+
+.book-cover-large {
+    align-items: center;
+    background: linear-gradient(135deg, #2f6fdd, #8ec5ff);
+    border-radius: 0.75rem;
+    box-shadow: 0 0.75rem 1.5rem rgba(47, 111, 221, 0.2);
+    color: #fff;
+    display: flex;
+    font-size: 3.5rem;
+    font-weight: 700;
+    height: 260px;
+    justify-content: center;
+    width: 100%;
+}
+
+.rank-badge {
+    background: #eef3fb;
+    border-radius: 999px;
+    color: #52637a;
+    display: inline-block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 28px;
+    padding: 0.2rem 0.5rem;
+    text-align: center;
+}
+
+.rank-badge.rank-top {
+    background: #fff1d6;
+    color: #a76700;
+}
+
+.price-box {
+    align-items: baseline;
+    background: #fff8f0;
+    border: 1px solid #ffe3c2;
+    border-radius: 0.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+}
+
+.current-price {
+    color: #d9480f;
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.original-price {
+    color: #98a2b3;
+    text-decoration: line-through;
+}
+
+.mini-stat {
+    background: #f8fafd;
+    border: 1px solid #eef1f6;
+    border-radius: 0.6rem;
+    padding: 0.65rem 0.8rem;
+}
+
+.mini-stat-label {
+    color: #7b8798;
+    font-size: 0.78rem;
+    margin-bottom: 0.15rem;
+}
+
+.mini-stat-value {
+    color: #1d2a3d;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.min-w-0 {
+    min-width: 0;
+}
+
+.text-decoration-line-through {
+    text-decoration: line-through;
+}
+
+.table > :not(caption) > * > * {
+    padding: 0.7rem 0.75rem;
+}
+
+footer {
+    border-top: 1px solid #e7ebf2;
+    margin-top: 2rem;
+}
+
+@media (max-width: 767.98px) {
+    .book-cover-large {
+        font-size: 2.5rem;
+        height: 180px;
+    }
+
+    .stat-value {
+        font-size: 1.2rem;
+    }
+
+    .chart {
+        height: 280px;
+    }
+}
