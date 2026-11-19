@@ -9,6 +9,8 @@ JSONL 每行一个 JSON 对象，最少需要 title 和 price。字段说明见 
 """
 
 import json
+import re
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -48,6 +50,35 @@ def _to_decimal(value):
         return None
 
 
+def _resolve_snapshot_date(item):
+    """把榜单周期换算成快照日期。
+
+    优先级：
+      1. 显式 snapshot_date（最准确）
+      2. ranking_period = "2026-07" 月榜 -> 该月最后一天（月末代表"这个月"）
+      3. ranking_period = "近7日" 等当期榜单 -> 今天
+      4. 都没有 -> 今天
+    """
+    explicit = item.get("snapshot_date")
+    if explicit:
+        parsed = parse_date(str(explicit))
+        if parsed:
+            return parsed
+
+    period = str(item.get("ranking_period") or "").strip()
+    match = re.match(r"^(\d{4})-(\d{2})$", period)
+    if match:
+        year, month = int(match.group(1)), int(match.group(2))
+        # 该月最后一天：下月 1 号减一天
+        if month == 12:
+            first_next = date(year + 1, 1, 1)
+        else:
+            first_next = date(year, month + 1, 1)
+        return first_next - timedelta(days=1)
+
+    return timezone.localdate()
+
+
 class Command(BaseCommand):
     help = "从 JSONL 文件导入图书数据（爬虫输出）"
 
@@ -64,7 +95,6 @@ class Command(BaseCommand):
             help="数据来源标识，默认 dangdang",
         )
 
-    @transaction.atomic
     def handle(self, *args, **options):
         path = Path(options["path"])
         if not path.is_absolute():
@@ -87,7 +117,10 @@ class Command(BaseCommand):
                 found += 1
                 try:
                     item = json.loads(line)
-                    self._import_item(item, source)
+                    # 每条记录单独一个事务：某条失败只回滚该条，
+                    # 不会污染整批（外层 atomic 会把整批标记为不可用）。
+                    with transaction.atomic():
+                        self._import_item(item, source)
                     saved += 1
                 except Exception as exc:  # 单条数据失败不影响后续记录
                     errors.append(f"第 {line_no} 行：{exc}")
@@ -167,27 +200,42 @@ class Command(BaseCommand):
 
         if "authors" in item:
             author_names = _as_list(item.get("authors"))
+            # 同一本书里作者可能重复出现（如“罗广斌,罗广斌著”），先按顺序去重
+            seen_authors = set()
+            cleaned = []
+            for name in author_names:
+                if name and name not in seen_authors:
+                    seen_authors.add(name)
+                    cleaned.append(name)
             book.book_authors.all().delete()
-            for order, name in enumerate(author_names, start=1):
+            for order, name in enumerate(cleaned, start=1):
                 author, _ = Author.objects.get_or_create(name=name)
-                BookAuthor.objects.create(book=book, author=author, author_order=order)
+                BookAuthor.objects.get_or_create(
+                    book=book,
+                    author=author,
+                    defaults={"author_order": order},
+                )
 
         if "categories" in item:
             category_names = _as_list(item.get("categories"))
+            seen_categories = set()
+            cleaned_categories = []
+            for name in category_names:
+                if name and name not in seen_categories:
+                    seen_categories.add(name)
+                    cleaned_categories.append(name)
             book.book_categories.all().delete()
-            for order, name in enumerate(category_names):
+            for order, name in enumerate(cleaned_categories):
                 category, _ = Category.objects.get_or_create(name=name)
-                BookCategory.objects.create(
-                    book=book, category=category, is_primary=(order == 0)
+                BookCategory.objects.get_or_create(
+                    book=book,
+                    category=category,
+                    defaults={"is_primary": (order == 0)},
                 )
 
         rank = item.get("rank")
         if rank not in (None, ""):
-            snapshot_date = (
-                parse_date(str(item.get("snapshot_date")))
-                if item.get("snapshot_date")
-                else timezone.localdate()
-            )
+            snapshot_date = _resolve_snapshot_date(item)
             ranking_category = None
             ranking_category_name = str(item.get("ranking_category") or "").strip()
             if ranking_category_name:

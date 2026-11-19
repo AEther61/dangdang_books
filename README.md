@@ -1,8 +1,10 @@
 # 当当网畅销图书信息管理与分析
 
-《高级数据库开发》课程小组项目。使用 **Django + MySQL** 完成图书数据的存储、展示和简单分析。
+《高级数据库开发》课程小组项目。使用 **Django + MySQL** 完成图书数据的采集、存储、展示和简单分析。
 
-当前版本以“能演示”为目标：**爬虫/样例数据 + 3 个核心页面**，不做登录、不做自定义增删改后台、不做 PPT 和演示视频。
+**数据来源：真实爬取。** 仓库自带 5400 条当当畅销榜数据（44 个分类 + 2026 年 1~10 月月榜），`data/books.jsonl` 即为标准数据集，clone 后无需重新爬取。`seed_data.py` 的模拟数据仅作为离线兜底保留。
+
+当前版本以“能演示”为目标：**真实榜单数据 + 3 个核心页面**，不做登录、不做自定义增删改后台、不做 PPT 和演示视频。
 
 ## 1. 技术栈
 
@@ -34,12 +36,15 @@ dangdang_books/
 │   ├── queries.py            # 仪表盘原生 SQL
 │   ├── admin.py
 │   └── management/commands/
-│       ├── seed_data.py      # 生成 120 条样例数据
-│       └── import_books.py   # 导入爬虫 JSONL
+│       ├── init_demo.py      # 一键建表+导入数据
+│       ├── seed_data.py      # 生成 120 条模拟数据（备用）
+│       └── import_books.py   # 导入 JSONL 榜单数据
+├── scraper/
+│   └── fetch_ranking.py      # 当当榜单采集脚本
 ├── templates/                # 页面模板
 ├── static/css/style.css
-├── data/                     # 爬虫数据（JSONL）
-├── docs/                     # E-R 图、表结构说明
+├── data/                     # 榜单数据（JSONL）
+├── docs/                     # E-R 图、表结构说明、实验脚本
 └── scripts/init_db.sql
 ```
 
@@ -70,7 +75,7 @@ CREATE DATABASE IF NOT EXISTS dangdang_books
 建议使用虚拟环境（可选）：
 
 ```bash
-cd D:\School\AdvancedDatabaseDevelopment\dangdang_books
+cd <项目目录>/dangdang_books
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
@@ -78,7 +83,11 @@ pip install -r requirements.txt
 
 ### 3.3 配置 `.env`
 
-项目里已有一份 `.env`，把 `DB_PASSWORD` 改成你本机 MySQL 的密码：
+从模板复制一份，再改成你本机 MySQL 的密码和端口：
+
+```bash
+copy .env.example .env
+```
 
 ```ini
 DB_NAME=dangdang_books
@@ -90,22 +99,42 @@ DB_PORT=3306
 
 `.env` 已加入 `.gitignore`，不要提交到 GitHub。需要重置时参考 `.env.example`。
 
-### 3.4 建表并生成样例数据
+> 如果本机 MySQL 8.0 不在默认 3306（比如另装了实例），把 `DB_PORT` 改成实际端口即可。
+
+### 3.4 一键初始化数据（推荐）
+
+建表 + 导入榜单数据 + 补价格历史，**一条命令搞定**：
 
 ```bash
-python manage.py migrate
-python manage.py seed_data
+python manage.py init_demo
 ```
 
-`seed_data` 会生成：
+这条命令读取仓库里的 `data/books.jsonl`（**5400 条真实爬取的当当榜单数据，已随仓库提交，不用重新爬**），完成：
 
-- 120 本图书
-- 30 位作者、12 家出版社、10 个分类
-- 3 个日期的总榜快照（每天前 50 名）
-- 每本书 3 条价格历史
-- 1 条采集日志
+1. `migrate` 建表
+2. `import_books` 导入图书、作者、出版社、分类、榜单快照
+3. 为每本书补一条初始价格记录
 
-重复执行会更新同一批样例图书，不会无限增加。
+重复执行不会重复插入；想彻底重置为仓库里的标准数据：
+
+```bash
+python manage.py init_demo --reset
+```
+
+初始化完成后库里有：
+
+| 内容 | 数量 |
+|---|---|
+| 图书 | 4467 |
+| 作者 | 4922 |
+| 出版社 | 372 |
+| 排行榜分类 | 44（总榜 + 43 个一级分类） |
+| 榜单记录 | 5400（含 2026 年 1~10 月月榜 + 近 7 日榜） |
+| 时间周期 | 11（10 个月榜 + 当期近 7 日） |
+| 价格历史 | 4467 |
+| 采集日志 | 1 |
+
+> 离线兜底：`python manage.py migrate` + `python manage.py seed_data` 会生成 120 条**模拟**数据，仅在没有网络、需要快速看页面时使用，**不是**项目的标准数据。
 
 ### 3.5 启动
 
@@ -122,18 +151,110 @@ python manage.py runserver
 
 ### 3.6 在 PyCharm 中运行
 
-项目已在根目录创建 `.venv` 虚拟环境并装好依赖。PyCharm 打开项目后如果提示没有解释器：
+本项目可以直接使用**本机 Python 解释器**（3.12），不需要单独建虚拟环境。
 
-1. `File → Settings → Project: dangdang_books → Python Interpreter`
-2. 选择 `Add Interpreter → Add Local Interpreter → Existing`
-3. 解释器路径选 `D:\School\AdvancedDatabaseDevelopment\dangdang_books\.venv\Scripts\python.exe`
-4. 确定后，直接运行已有的 `dangdang_books` Django 配置即可
+1. 先确认依赖已装到本机 Python：
+
+   ```bash
+   python -m pip install -r requirements.txt
+   ```
+
+2. `File → Settings → Project: 高级数据库 → Python Interpreter`，选择 `Add Interpreter → Add Local Interpreter → System Interpreter`
+3. 解释器路径选本机 Python，例如 `C:\Users\<用户名>\AppData\Local\Programs\Python\Python312\python.exe`
+4. 打开右上角的运行配置下拉框，选 **`dangdang_books`**（已预置的 Django Server 配置）直接运行
+
+`dangdang_books` 这个运行配置已经设置好：
+
+- Script：`dangdang_books/manage.py`，参数 `runserver`
+- Working directory：`dangdang_books/`
+- 数据库连接自动从 `.env` 读取，不需要在 PyCharm 里另配环境变量
+
+> 如果习惯用虚拟环境，`python -m venv .venv` 后把解释器指向 `.venv\Scripts\python.exe` 也可以，两者效果一致。
 
 注意：`templates/` 下的是 **Django 模板**，双击只能查看/编辑源码，不能像普通 HTML 一样直接预览。要看页面效果，必须启动 Django 后访问 <http://127.0.0.1:8000/>。
 
-## 4. 爬虫数据导入
+### 3.7 在 PyCharm 的 Database 面板中查看数据（可选）
 
-爬虫组把结果保存为 JSONL（每行一个 JSON），字段说明见 [`data/README.md`](data/README.md)。
+答辩时需要现场查表，可以加一个数据源：
+
+| 项 | 值 |
+|---|---|
+| Host | `127.0.0.1` |
+| Port | `3307`（注意不是 3306） |
+| User | `root` |
+| Password | 与 `.env` 中 `DB_PASSWORD` 一致 |
+| Database | `dangdang_books` |
+
+端口填错会连到另一个 MySQL 实例，看不到本项目的表。
+
+## 4. 数据来源与采集
+
+### 4.1 标准数据集
+
+`data/books.jsonl` 是本项目的**标准数据集**，已随仓库提交，`init_demo` 直接读取它。
+
+- 来源：当当网畅销书排行榜，**全部分类 + 时间维度（月榜）**
+- 规模：**5400 条榜单记录，4469 本图书，44 个分类，11 个时间周期**
+- 字段：排名、分类、周期、书名、当当 ID、现价、原价、评分、评论数、作者、出版社、出版日期、封面、详情页链接
+- 字段说明见 [`data/README.md`](data/README.md)
+
+**时间维度**：抓取 2026 年 1~10 月的月榜（每月 100 条），加上当期「近 7 日」榜（4400 条）。同一本书在不同月份的排名都会保留，可做排名变化分析。
+
+| 时间周期 | 记录数 |
+|---|---|
+| 2026-01 ~ 2026-10（月榜各 100 条） | 1000 |
+| 近 7 日（44 个分类 × 100 条） | 4400 |
+
+**分类覆盖**：总榜 + 43 个一级分类（童书、小说、文学、历史、计算机/网络、哲学/宗教、医学、法律、建筑、农业/林业等），每个分类各 100 条。
+
+各分类分布（近 7 日榜，每类 100 条）：
+
+| 分类 | 条数 | 分类 | 条数 |
+|---|---|---|---|
+| 总榜 | 100 | 心理学 | 100 |
+| 童书 | 100 | 青春文学 | 100 |
+| 中小学用书 | 100 | 管理 | 100 |
+| 小说 | 100 | 社会科学 | 100 |
+| 文学 | 100 | 政治军事 | 100 |
+| 外语 | 100 | 古籍 | 100 |
+| 历史 | 100 | 亲子家教 | 100 |
+| 动漫幽默 | 100 | 科普读物 | 100 |
+| 哲学宗教 | 100 | 传记 | 100 |
+| 成功励志 | 100 | 保健养生 | 100 |
+| 艺术 | 100 | 法律 / 教材 / 经济 | 各 100 |
+
+完整 43 个分类见 `data/books.jsonl` 的 `categories` 字段。
+
+### 4.2 重新采集
+
+需要更新数据时再跑采集脚本：
+
+```bash
+# 全部分类 × 5 页 + 2026 年 1-10 月月榜（当前标准数据的抓法）
+python scraper/fetch_ranking.py --all-categories --months 2026:1-10 --pages 5
+
+# 只抓总榜 5 页（100 条）
+python scraper/fetch_ranking.py
+
+# 只抓指定分类
+python scraper/fetch_ranking.py --only 童书,小说,历史 --pages 3
+
+# 断点续爬：中断后重跑会自动跳过已抓过的组合
+python scraper/fetch_ranking.py --all-categories --months 2026:1-10 --resume
+```
+
+实现要点：
+
+- 分类编码**不硬编码**，运行时从榜单页导航自动发现
+- 页面是 GBK 编码，已显式指定
+- **从第 2 页起页面 title 会带“第N页_”前缀**，解析分类名前需先剥离
+- 部分商品同时显示秒杀价和活动价，只取第一段作为现价
+- 月榜无数据的月份（如未结束的当月）自动跳过
+- 每页间隔 0.8 秒；只抓公开榜单信息，不绕过登录/验证码
+
+如果采集后分类名有变化，可执行 `python scraper/normalize_categories.py` 统一分类名。
+
+### 4.3 导入任意 JSONL
 
 ```bash
 python manage.py import_books data/books.jsonl --source dangdang
@@ -141,12 +262,10 @@ python manage.py import_books data/books.jsonl --source dangdang
 
 导入逻辑：
 
-- 优先按 `isbn` 匹配已有图书
-- 没有 ISBN 时按 `dangdang_id` 匹配
-- 再按“书名 + 出版社”匹配
+- 优先按 `isbn` 匹配已有图书，再按 `dangdang_id`，最后按“书名 + 出版社”
 - 可同时写入作者、分类、榜单快照和价格历史
-
-即使爬虫暂时不可用，`seed_data` 也能保证验收时有 100+ 条数据。
+- 作者/分类重复会自动去重（如“罗广斌,罗广斌著”）
+- 每条记录独立事务，单条失败不影响整批，失败明细写入 `crawl_log`
 
 ## 5. 核心页面
 
@@ -160,9 +279,10 @@ python manage.py import_books data/books.jsonl --source dangdang
 
 ```text
 [ ] python manage.py check 无报错
-[ ] python manage.py migrate 无报错
+[ ] python manage.py init_demo 无报错
 [ ] 数据来自 MySQL，不是 SQLite
-[ ] 至少有 100 条图书数据
+[ ] 至少有 100 条图书数据（当前为 4467 本图书、5400 条榜单记录）
+[ ] 数据来自真实爬取，data/books.jsonl 可追溯
 [ ] /            仪表盘能打开，有数字卡片和图表
 [ ] /books/      列表能显示数据、搜索、分类筛选、分页
 [ ] /books/<id>/ 详情能显示基本信息、榜单、价格历史
@@ -192,10 +312,25 @@ pip install PyMySQL
 
 ### 页面提示暂无数据
 
-执行：
+还没有导入数据，执行：
 
 ```bash
-python manage.py seed_data
+python manage.py init_demo
+```
+
+### 数据量不对 / 想恢复成仓库里的标准数据
+
+```bash
+python manage.py init_demo --reset
+```
+
+这会把业务表清空后重新导入 `data/books.jsonl`。
+
+### 想更新成最新的榜单数据
+
+```bash
+python scraper/fetch_ranking.py --categories 10 --pages 5
+python manage.py init_demo --reset
 ```
 
 ### 端口被占用
@@ -239,13 +374,14 @@ python -m venv .venv
 # 安装依赖
 pip install -r requirements.txt
 
-# 复制环境变量模板，并填写自己电脑的 MySQL 密码
+# 复制环境变量模板，并填写自己电脑的 MySQL 密码和端口
 copy .env.example .env
 
-# 建库、建表、生成样例数据
+# 建空库
 mysql -u root -p < scripts/init_db.sql
-python manage.py migrate
-python manage.py seed_data
+
+# 一条命令建表 + 导入仓库里的 5400 条真实榜单数据
+python manage.py init_demo
 
 # 启动
 python manage.py runserver
@@ -258,6 +394,8 @@ PowerShell 用户把激活命令换成：
 ```
 
 `.env` 不进入 Git，每个人使用自己的本地数据库密码。
+
+> **不需要重新跑爬虫。** `data/books.jsonl` 已随仓库提交，`init_demo` 直接读它。只有想更新榜单时才执行 `scraper/fetch_ranking.py`。
 
 ### 9.3 每次开发：先同步，再开分支
 

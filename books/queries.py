@@ -72,13 +72,16 @@ def get_dashboard_data():
 
     top_books = []
     if latest_snapshot_date:
+        # 总榜有两种表示：category_id IS NULL（旧样例数据），
+        # 或者分类名为“总榜”（爬虫导入数据）。这里都算总榜。
         top_books = _fetch_all(
             """
             SELECT b.id, b.title, b.price, b.rating, rs.rank_no
             FROM ranking_snapshot rs
             JOIN book b ON b.id = rs.book_id
+            LEFT JOIN category c ON c.id = rs.category_id
             WHERE rs.snapshot_date = %s
-              AND rs.category_id IS NULL
+              AND (rs.category_id IS NULL OR c.name = '总榜')
               AND b.is_active = 1
             ORDER BY rs.rank_no ASC
             LIMIT 10
